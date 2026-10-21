@@ -1,0 +1,22 @@
+{
+  "name": "propvest-cap",
+  "version": "1.0.0",
+  "description": "Propvest iOS app (native shell over the live investing site)",
+  "main": "index.js",
+  "scripts": {
+    "make:icon": "node scripts/make-icon.js",
+    "cap:add:ios": "npx cap add ios",
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5"
+  }
+}

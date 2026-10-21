@@ -1,0 +1,59 @@
+# Codemagic cloud-Mac build -> TestFlight for Propvest.
+# A thin Capacitor shell over the live site (https://propvest-tau.vercel.app).
+# The iOS project and app icons are generated fresh on the Mac runner, so
+# nothing macOS-specific is committed.
+workflows:
+  ios-testflight:
+    name: Propvest iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: Codemagic
+    environment:
+      groups:
+        - ios            # must contain CM_CERT_KEY (distribution private key, base64 PEM)
+      vars:
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
+        BUNDLE_ID: com.jjfitnessline.propvest
+      node: 22
+    scripts:
+      - name: Install npm deps
+        script: npm install
+      - name: Generate app icon + splash
+        script: node scripts/make-icon.js
+      - name: Add iOS platform
+        script: npx cap add ios || true
+      - name: Generate iOS icon + splash assets
+        script: |
+          npx @capacitor/assets generate --ios \
+            --iconBackgroundColor '#0d9488' --iconBackgroundColorDark '#0d9488' \
+            --splashBackgroundColor '#0A0E17' --splashBackgroundColorDark '#0A0E17' || true
+      - name: Capacitor sync iOS
+        script: npx cap sync ios
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          if [ -z "$CM_CERT_KEY" ]; then
+            echo "### FIX: add CM_CERT_KEY (distribution private key, base64 PEM) to this app's 'ios' env group as Secret"; exit 1;
+          fi
+          printf '%s' "$CM_CERT_KEY" | base64 --decode > /tmp/key.pem
+          if [ ! -s /tmp/key.pem ]; then echo "### FIX: CM_CERT_KEY is not valid base64"; exit 1; fi
+          # Fetch cert + profile (--create registers the bundle id + profile the first time).
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE \
+            --certificate-key @file:/tmp/key.pem --create
+          keychain add-certificates
+          # Configures the project for manual signing and writes ~/export_options.plist.
+          xcode-project use-profiles
+      - name: Set build number
+        script: |
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build IPA
+        script: xcode-project build-ipa --project "$XCODE_PROJECT" --scheme "$XCODE_SCHEME" --disable-xcpretty
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
